@@ -1,7 +1,7 @@
-const fs = require('fs');
-const path = require('path');
+import fs from "fs";
+import path from "path";
 
-module.exports = (req, res) => {
+export default async function handler(req, res) {
   const { license, device } = req.query;
 
   if (!license || !device) {
@@ -9,11 +9,12 @@ module.exports = (req, res) => {
     return;
   }
 
-  const licensesPath = path.join(__dirname, '..', 'licenses.json');
+  const licensesPath = path.join(process.cwd(), "licenses.json");
+
   let licenses;
 
   try {
-    const data = fs.readFileSync(licensesPath, 'utf8');
+    const data = fs.readFileSync(licensesPath, "utf8");
     licenses = JSON.parse(data);
   } catch (err) {
     res.status(500).json({ success: false, message: "Could not read licenses file" });
@@ -28,7 +29,6 @@ module.exports = (req, res) => {
   }
 
   if (lic.device === null) {
-    // Assign device to license key
     lic.device = device;
     fs.writeFileSync(licensesPath, JSON.stringify(licenses, null, 2));
     res.json({ success: true, message: "License is valid and assigned to this device" });
@@ -41,4 +41,4 @@ module.exports = (req, res) => {
   }
 
   res.json({ success: false, message: "License key already used on another device" });
-};
+}
