@@ -1,35 +1,44 @@
-import fs from 'fs';
-import path from 'path';
+const fs = require('fs');
+const path = require('path');
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, message: 'Only POST allowed' });
+module.exports = (req, res) => {
+  const { license, device } = req.query;
+
+  if (!license || !device) {
+    res.status(400).json({ success: false, message: "Missing license or device parameter" });
+    return;
   }
 
-  const { licenseKey, deviceId } = req.body;
+  const licensesPath = path.join(__dirname, '..', 'licenses.json');
+  let licenses;
 
-  if (!licenseKey || !deviceId) {
-    return res.status(400).json({ success: false, message: 'Missing license key or device ID' });
+  try {
+    const data = fs.readFileSync(licensesPath, 'utf8');
+    licenses = JSON.parse(data);
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Could not read licenses file" });
+    return;
   }
 
-  const filePath = path.join(process.cwd(), 'licenses.json');
-  const licenses = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const lic = licenses.find(l => l.key === license);
 
-  const matched = licenses.find((entry) => entry.key === licenseKey);
-
-  if (!matched) {
-    return res.status(403).json({ success: false, message: 'Invalid license key' });
+  if (!lic) {
+    res.json({ success: false, message: "License key not found" });
+    return;
   }
 
-  if (matched.device && matched.device !== deviceId) {
-    return res.status(403).json({ success: false, message: 'License already used on another device' });
+  if (lic.device === null) {
+    // Assign device to license key
+    lic.device = device;
+    fs.writeFileSync(licensesPath, JSON.stringify(licenses, null, 2));
+    res.json({ success: true, message: "License is valid and assigned to this device" });
+    return;
   }
 
-  // Optional: Save device ID if not yet used
-  if (!matched.device) {
-    matched.device = deviceId;
-    fs.writeFileSync(filePath, JSON.stringify(licenses, null, 2));
+  if (lic.device === device) {
+    res.json({ success: true, message: "License is valid for this device" });
+    return;
   }
 
-  return res.status(200).json({ success: true, message: 'License valid and device matched' });
-}
+  res.json({ success: false, message: "License key already used on another device" });
+};
